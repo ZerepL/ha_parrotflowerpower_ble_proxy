@@ -59,6 +59,9 @@ async def _async_poll(hass: HomeAssistant, service_info: BluetoothServiceInfoBle
             data = await client.read_gatt_char(handle)
             result[key] = _decode(key, data)
             LOGGER.debug("Read %s = %s", key, result[key])
+    except Exception as e:
+        LOGGER.error("Poll failed for %s: %s", service_info.device.address, e)
+        raise
     finally:
         await client.disconnect()
     return result
@@ -83,17 +86,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return data
 
     def _update(service_info: BluetoothServiceInfoBleak, _change) -> dict:
-        return last_poll
+        return last_poll.copy()
 
     coordinator = ActiveBluetoothProcessorCoordinator(
         hass,
         LOGGER,
         address=address,
-        mode=BluetoothScanningMode.PASSIVE,
+        mode=BluetoothScanningMode.ACTIVE,
         update_method=_update,
         needs_poll_method=_needs_poll,
         poll_method=_poll,
-        connectable=False,
+        connectable=True,
     )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
