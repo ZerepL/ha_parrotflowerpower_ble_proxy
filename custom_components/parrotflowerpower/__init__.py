@@ -15,6 +15,7 @@ from homeassistant.components.bluetooth import (
 from homeassistant.components.bluetooth.active_update_processor import (
     ActiveBluetoothProcessorCoordinator,
 )
+from homeassistant.components.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import CoreState, HomeAssistant
@@ -99,7 +100,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         connectable=True,
     )
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    # Create device registry entry
+    device_info = DeviceInfo(
+        identifiers={(DOMAIN, address)},
+        name="Parrot Flower Power",
+        manufacturer="Parrot",
+        model="Flower Power",
+        sw_version="1.0",
+        hw_version=None,
+        configuration_url=f"http://zweihander.lan/config/devices",
+    )
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "coordinator": coordinator,
+        "device_info": device_info,
+    }
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(coordinator.async_start())
     return True
