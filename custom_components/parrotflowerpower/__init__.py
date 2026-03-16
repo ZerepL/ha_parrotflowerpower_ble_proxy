@@ -15,10 +15,10 @@ from homeassistant.components.bluetooth import (
 from homeassistant.components.bluetooth.active_update_processor import (
     ActiveBluetoothProcessorCoordinator,
 )
-from homeassistant.components.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN, HANDLES, LOGGER, POLL_INTERVAL
 
