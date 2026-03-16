@@ -91,7 +91,10 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: ActiveBluetoothProcessorCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: ActiveBluetoothProcessorCoordinator = coordinator_data["coordinator"]
+    device_info = coordinator_data["device_info"]
+    
     processor = PassiveBluetoothDataProcessor(_to_data_update)
     entry.async_on_unload(processor.async_add_entities_listener(FlowerPowerSensor, async_add_entities))
     entry.async_on_unload(coordinator.async_register_processor(processor))
@@ -99,6 +102,12 @@ async def async_setup_entry(
 
 class FlowerPowerSensor(PassiveBluetoothProcessorEntity, SensorEntity):
     """A Parrot Flower Power BLE sensor entity."""
+
+    @property
+    def device_info(self):
+        """Return device info for the sensor."""
+        coordinator_data = self.hass.data[DOMAIN][self.entry_id]
+        return coordinator_data["device_info"]
 
     @property
     def native_value(self) -> float | None:
