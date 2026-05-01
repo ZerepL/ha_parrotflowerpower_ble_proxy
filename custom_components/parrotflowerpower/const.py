@@ -16,4 +16,4 @@ HANDLES = {
 # Known MAC prefixes for Parrot Flower Power devices
 DEVICE_MAC_PREFIXES = ("A0:14:3D", "90:03:B7")
 
-POLL_INTERVAL = 60  # seconds (temporary for testing)
+POLL_INTERVAL = 1800  # seconds (30 minutes)

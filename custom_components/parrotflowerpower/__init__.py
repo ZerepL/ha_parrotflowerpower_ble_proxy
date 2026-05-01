@@ -17,7 +17,7 @@ from homeassistant.components.bluetooth.active_update_processor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN, HANDLES, LOGGER, POLL_INTERVAL
@@ -51,7 +51,9 @@ async def _async_poll(hass: HomeAssistant, service_info: BluetoothServiceInfoBle
     else:
         ble_device = async_ble_device_from_address(hass, service_info.device.address, connectable=True)
         if not ble_device:
-            raise RuntimeError(f"No connectable device found for {service_info.device.address}")
+            ble_device = async_ble_device_from_address(hass, service_info.device.address, connectable=False)
+        if not ble_device:
+            raise RuntimeError(f"No device found for {service_info.device.address}")
 
     result = {}
     client = await establish_connection(BleakClient, ble_device, service_info.device.address)
@@ -71,14 +73,14 @@ async def _async_poll(hass: HomeAssistant, service_info: BluetoothServiceInfoBle
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     address = entry.unique_id
     assert address is not None
+    address = address.upper()
 
     last_poll: dict = {}
 
     def _needs_poll(service_info: BluetoothServiceInfoBleak, seconds_since_last_poll: float | None) -> bool:
         return (
-            hass.state == CoreState.running
+            hass.is_running
             and (seconds_since_last_poll is None or seconds_since_last_poll >= POLL_INTERVAL)
-            and bool(async_ble_device_from_address(hass, service_info.device.address, connectable=True))
         )
 
     async def _poll(service_info: BluetoothServiceInfoBleak) -> dict:
@@ -86,7 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         last_poll.update(data)
         return data
 
-    def _update(service_info: BluetoothServiceInfoBleak, _change) -> dict:
+    def _update(service_info: BluetoothServiceInfoBleak) -> dict:
         return last_poll.copy()
 
     coordinator = ActiveBluetoothProcessorCoordinator(
@@ -97,23 +99,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_method=_update,
         needs_poll_method=_needs_poll,
         poll_method=_poll,
-        connectable=True,
+        connectable=False,
     )
 
-    # Create device registry entry
     device_info = DeviceInfo(
         identifiers={(DOMAIN, address)},
-        name="Parrot Flower Power",
+        name=entry.title,
         manufacturer="Parrot",
         model="Flower Power",
-        sw_version="1.0",
-        hw_version=None,
-        configuration_url=f"http://zweihander.lan/config/devices",
     )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator,
         "device_info": device_info,
+        "last_poll": last_poll,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

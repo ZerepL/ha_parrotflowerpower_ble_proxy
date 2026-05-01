@@ -81,8 +81,15 @@ def _to_data_update(data: dict) -> PassiveBluetoothDataUpdate:
             for key, desc in SENSOR_DESCRIPTIONS.items()
             if key in data
         },
-        entity_names={PassiveBluetoothEntityKey(key, None): desc.name for key, desc in SENSOR_DESCRIPTIONS.items() if key in data},
-        entity_data={PassiveBluetoothEntityKey(key, None): value for key, value in data.items()},
+        entity_names={
+            PassiveBluetoothEntityKey(key, None): desc.name
+            for key, desc in SENSOR_DESCRIPTIONS.items()
+            if key in data
+        },
+        entity_data={
+            PassiveBluetoothEntityKey(key, None): value
+            for key, value in data.items()
+        },
     )
 
 
@@ -93,11 +100,17 @@ async def async_setup_entry(
 ) -> None:
     coordinator_data = hass.data[DOMAIN][entry.entry_id]
     coordinator: ActiveBluetoothProcessorCoordinator = coordinator_data["coordinator"]
-    device_info = coordinator_data["device_info"]
-    
+
     processor = PassiveBluetoothDataProcessor(_to_data_update)
-    entry.async_on_unload(processor.async_add_entities_listener(FlowerPowerSensor, async_add_entities))
+    processor.device_info = coordinator_data["device_info"]  # type: ignore[attr-defined]
+    entry.async_on_unload(
+        processor.async_add_entities_listener(FlowerPowerSensor, async_add_entities)
+    )
     entry.async_on_unload(coordinator.async_register_processor(processor))
+
+    # Eagerly create all entities with None state so they appear even when the
+    # device is off and no BLE advertisements have been received yet.
+    processor.async_handle_update({key: None for key in SENSOR_DESCRIPTIONS}, True)
 
 
 class FlowerPowerSensor(PassiveBluetoothProcessorEntity, SensorEntity):
@@ -106,8 +119,7 @@ class FlowerPowerSensor(PassiveBluetoothProcessorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device info for the sensor."""
-        coordinator_data = self.hass.data[DOMAIN][self.entry_id]
-        return coordinator_data["device_info"]
+        return self.processor.device_info  # type: ignore[attr-defined]
 
     @property
     def native_value(self) -> float | None:
