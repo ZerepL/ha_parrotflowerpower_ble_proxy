@@ -2,7 +2,7 @@
   "domain": "parrotflowerpower",
   "name": "Parrot Flower Power BLE Proxy",
   "documentation": "https://github.com/ZerepL/ha_parrotflowerpower_ble_proxy",
-  "requirements": ["bleak-retry-connector==4.4.3"],
+  "requirements": [],
   "dependencies": ["bluetooth", "bluetooth_adapters"],
   "bluetooth": [
     {"local_name": "Flower power"}
