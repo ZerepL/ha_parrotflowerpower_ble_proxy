@@ -99,7 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_method=_update,
         needs_poll_method=_needs_poll,
         poll_method=_poll,
-        connectable=False,
+        connectable=True,
     )
 
     device_info = DeviceInfo(

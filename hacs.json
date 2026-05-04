@@ -1,0 +1,8 @@
+{
+  "name": "Parrot Flower Power BLE Proxy",
+  "domain": "parrotflowerpower",
+  "documentation": "https://github.com/ZerepL/ha_parrotflowerpower_ble_proxy",
+  "issue_tracker": "https://github.com/ZerepL/ha_parrotflowerpower_ble_proxy/issues",
+  "codeowners": ["@ZerepL"],
+  "render_readme": true
+}

@@ -40,6 +40,15 @@ Without `active: true` the proxy only does passive scanning and cannot connect t
 
 ## Installation
 
+### Via HACS (recommended)
+
+1. In HACS, go to **Integrations → ⋮ menu → Custom repositories**.
+2. Add `https://github.com/ZerepL/ha_parrotflowerpower_ble_proxy` with category **Integration**.
+3. Search for **Parrot Flower Power BLE Proxy** in HACS and install it.
+4. Restart Home Assistant.
+
+### Manual
+
 Copy the `custom_components/parrotflowerpower` folder into your HA `config/custom_components/` directory and restart Home Assistant.
 
 ## Adding a Device
