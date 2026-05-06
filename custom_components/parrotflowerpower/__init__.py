@@ -2,23 +2,18 @@
 from __future__ import annotations
 
 import math
+from datetime import timedelta
 from struct import unpack
 
 from bleak import BleakClient
 from bleak_retry_connector import establish_connection
 
-from homeassistant.components.bluetooth import (
-    BluetoothScanningMode,
-    BluetoothServiceInfoBleak,
-    async_ble_device_from_address,
-)
-from homeassistant.components.bluetooth.active_update_processor import (
-    ActiveBluetoothProcessorCoordinator,
-)
+from homeassistant.components.bluetooth import async_ble_device_from_address
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import DOMAIN, HANDLES, LOGGER, POLL_INTERVAL
 
@@ -45,25 +40,22 @@ def _decode(key: str, data: bytes) -> float:
     return round(raw * 1.0, 1)
 
 
-async def _async_poll(hass: HomeAssistant, service_info: BluetoothServiceInfoBleak) -> dict:
-    if service_info.connectable:
-        ble_device = service_info.device
-    else:
-        ble_device = async_ble_device_from_address(hass, service_info.device.address, connectable=True)
-        if not ble_device:
-            ble_device = async_ble_device_from_address(hass, service_info.device.address, connectable=False)
-        if not ble_device:
-            raise RuntimeError(f"No device found for {service_info.device.address}")
+async def _async_poll(hass: HomeAssistant, address: str) -> dict:
+    ble_device = async_ble_device_from_address(hass, address, connectable=True)
+    if not ble_device:
+        ble_device = async_ble_device_from_address(hass, address, connectable=False)
+    if not ble_device:
+        raise RuntimeError(f"No BLE device found for {address}")
 
     result = {}
-    client = await establish_connection(BleakClient, ble_device, service_info.device.address)
+    client = await establish_connection(BleakClient, ble_device, address)
     try:
         for key, handle in HANDLES.items():
             data = await client.read_gatt_char(handle)
             result[key] = _decode(key, data)
             LOGGER.debug("Read %s = %s", key, result[key])
     except Exception as e:
-        LOGGER.error("Poll failed for %s: %s", service_info.device.address, e)
+        LOGGER.error("Poll failed for %s: %s", address, e)
         raise
     finally:
         await client.disconnect()
@@ -73,50 +65,43 @@ async def _async_poll(hass: HomeAssistant, service_info: BluetoothServiceInfoBle
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     address = entry.unique_id
     assert address is not None
-    address = address.upper()
-
-    last_poll: dict = {}
-
-    def _needs_poll(service_info: BluetoothServiceInfoBleak, seconds_since_last_poll: float | None) -> bool:
-        return (
-            hass.is_running
-            and (seconds_since_last_poll is None or seconds_since_last_poll >= POLL_INTERVAL)
-        )
-
-    async def _poll(service_info: BluetoothServiceInfoBleak) -> dict:
-        data = await _async_poll(hass, service_info)
-        last_poll.update(data)
-        return data
-
-    def _update(service_info: BluetoothServiceInfoBleak) -> dict:
-        return last_poll.copy()
-
-    coordinator = ActiveBluetoothProcessorCoordinator(
-        hass,
-        LOGGER,
-        address=address,
-        mode=BluetoothScanningMode.ACTIVE,
-        update_method=_update,
-        needs_poll_method=_needs_poll,
-        poll_method=_poll,
-        connectable=True,
-    )
+    address_upper = address.upper()
+    address_lower = address.lower()
 
     device_info = DeviceInfo(
-        identifiers={(DOMAIN, address)},
+        identifiers={(DOMAIN, address_lower)},
         name=entry.title,
         manufacturer="Parrot",
         model="Flower Power",
     )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "coordinator": coordinator,
         "device_info": device_info,
-        "last_poll": last_poll,
+        "address_lower": address_lower,
+        "data": {},
+        "listeners": [],
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(coordinator.async_start())
+
+    async def _do_poll(_now=None) -> None:
+        LOGGER.debug("Polling %s", address_upper)
+        try:
+            data = await _async_poll(hass, address_upper)
+        except Exception as err:
+            LOGGER.warning("Poll skipped for %s: %s", address_upper, err)
+            return
+        entry_data = hass.data[DOMAIN][entry.entry_id]
+        entry_data["data"].update(data)
+        for listener in list(entry_data["listeners"]):
+            listener()
+
+    # Poll immediately on setup, then on interval
+    hass.async_create_task(_do_poll())
+    entry.async_on_unload(
+        async_track_time_interval(hass, _do_poll, timedelta(seconds=POLL_INTERVAL))
+    )
+
     return True
 
 
